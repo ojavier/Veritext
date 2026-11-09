@@ -1,0 +1,24 @@
+project:
+  name: "veritext"
+  language: "es"
+
+analysis:
+  similarity_threshold: 0.70
+  matching_threshold: 0.70
+  ai_probability_threshold: 0.70
+
+alerts:
+  levels:
+    low: 0.40
+    uncertain: 0.70
+    high: 0.85
+
+input:
+  supported_languages:
+    - "es"
+    - "en"
+  max_segment_length: 1000
+
+output:
+  include_evidence: true
+  include_signals: true
