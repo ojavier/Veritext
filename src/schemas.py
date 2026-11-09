@@ -1,3 +1,6 @@
+from dataclasses import dataclass
+
+
 @dataclass
 class Segment:
     id: int; text: str; lang: str; start: int; end: int
