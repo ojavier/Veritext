@@ -10,7 +10,7 @@ class Signals:
     similarity: float          # 0-1
     matching: float            # 0-1
     ai_prob: float             # 0-1
-    evidence: dict             # fuente más cercana, texto coincidente, etc.
+    evidence: dict             # nearest source, matching text, etc.
 
 @dataclass
 class Alert:
