@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "veritext"
 version = "0.1.0"
-description = "Herramientas para analizar y detectar señales de similitud y texto generado por IA."
+description = "Tools for analyzing and detecting similarity signals and AI-generated text."
 requires-python = ">=3.10"
 dependencies = []
 

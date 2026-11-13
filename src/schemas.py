@@ -16,5 +16,5 @@ class Signals:
 class Alert:
     segment: Segment
     score: float
-    level: str                 # "bajo" | "incierto" | "alto"
+    level: str                 # "low" | "uncertain" | "high"
     signals: Signals
