@@ -6,10 +6,9 @@ FRESH chat with no project context and import it here.
 
 Workflow (from the repo root):
 
-1. Print a ready-to-paste prompt for one domain:
-       py scripts/import_generated.py --print-prompt ciencia --per-topic 2
-2. Paste it in a new chat, save the answer as a text file (JSON lines).
-3. Import it:
+1. In a new chat, ask for paragraphs per domain/topic as JSON lines (the topics
+   are the ones in scripts/generate_data.py), and save the answer as a text file.
+2. Import it:
        py scripts/import_generated.py --input answer.txt \
            --generator claude-sonnet-5-5 --model "<model name used in the chat>"
 
@@ -36,29 +35,6 @@ from ingest.cleaner import clean_text  # noqa: E402
 from ingest.langid import detect_language  # noqa: E402
 from src.dataset import load_dataset  # noqa: E402
 
-PROMPT = """Voy a pedirte varios párrafos en español. Responde ÚNICAMENTE con líneas JSON \
-(una por párrafo), sin texto adicional, sin introducción y sin bloques de código. Formato de cada línea:
-{{"domain": "{domain}", "topic": "<tema>", "text": "<párrafo>"}}
-
-Reglas:
-- Cada párrafo es un solo bloque de texto, sin saltos de línea, sin títulos, sin listas y sin comillas envolventes.
-- Longitud: entre 300 y 900 caracteres.
-- Escribe cada párrafo como lo harías normalmente si un usuario te lo pidiera, sin imitar ningún estilo en particular.
-- Para cada tema escribe {n} párrafos distintos (enfoque y redacción diferentes entre sí).
-
-Instrucción para cada párrafo: «{template}»
-Temas ({count}):
-{topics}
-"""
-
-
-def build_prompt(domain: str, per_topic: int) -> str:
-    template, topics = DOMAINS[domain]
-    shown = template.replace("{topic}", "<tema>")
-    return PROMPT.format(domain=domain, n=per_topic, template=shown, count=len(topics),
-                         topics="\n".join(f"- {t}" for t in topics))
-
-
 def parse_lines(text: str) -> list[dict]:
     rows = []
     for line in text.splitlines():
@@ -76,18 +52,12 @@ def parse_lines(text: str) -> list[dict]:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--print-prompt", choices=sorted(DOMAINS), metavar="DOMAIN",
-                    help="print the prompt for a domain and exit; one of: " + ", ".join(sorted(DOMAINS)))
-    ap.add_argument("--per-topic", type=int, default=2, help="paragraphs per topic in the printed prompt")
     ap.add_argument("--input", type=Path, help="file with the chat answer (JSON lines)")
     ap.add_argument("--generator", help="short name, e.g. claude-sonnet-5-5 (output file name)")
     ap.add_argument("--model", help="model name as reported in the chat")
     ap.add_argument("--source", default="claude-chat", help="how the text was produced")
     args = ap.parse_args()
 
-    if args.print_prompt:
-        print(build_prompt(args.print_prompt, args.per_topic))
-        return
     if not (args.input and args.generator and args.model):
         ap.error("--input, --generator and --model are required to import")
 
