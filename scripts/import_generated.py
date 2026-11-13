@@ -1,13 +1,10 @@
 """Import LLM paragraphs written in a separate chat into data/generated/.
 
-Why: a model that has seen this project (the human data, the topic lists, the
-detector) may write differently. To avoid that bias, generate the text in a
-FRESH chat with no project context and import it here.
-
 Workflow (from the repo root):
 
-1. In a new chat, ask for paragraphs per domain/topic as JSON lines (the topics
-   are the ones in scripts/generate_data.py), and save the answer as a text file.
+1. In a chat, ask a model for paragraphs per domain/topic as JSON lines (the
+   topics are the ones in scripts/generate_data.py) and save the answer as a
+   text file.
 2. Import it:
        py scripts/import_generated.py --input answer.txt \
            --generator claude-sonnet-5-5 --model "<model name used in the chat>"
