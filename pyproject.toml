@@ -7,20 +7,35 @@ name = "veritext"
 version = "0.1.0"
 description = "Tools for analyzing and detecting similarity signals and AI-generated text."
 requires-python = ">=3.10"
-dependencies = []
+dependencies = [
+    "pyyaml>=6.0",
+]
 
 [project.optional-dependencies]
+# Zero-shot signal and local LLM generation. For GPU builds of torch install
+# it first from https://pytorch.org (e.g. the cu118 index), then this extra.
+models = [
+    "torch>=2.1",
+    "transformers>=4.40",
+    "accelerate>=0.30",
+]
+# Only needed by scripts/collect_reviews_es.py (reads a parquet file).
+data = [
+    "pyarrow>=14",
+]
 dev = [
     "pytest>=8.0",
     "ruff>=0.6",
 ]
 
 [tool.setuptools.packages.find]
-where = ["src"]
-include = ["veritext*"]
+# Top-level packages live at the repo root (src, ingest, signals).
+where = ["."]
+include = ["src*", "ingest*", "signals*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 
 [tool.ruff]
 line-length = 88
