@@ -19,6 +19,11 @@ models = [
     "transformers>=4.40",
     "accelerate>=0.30",
 ]
+# Similarity signal (signals/similarity.py, scripts/build_index.py).
+similarity = [
+    "numpy>=1.24",
+    "sentence-transformers>=3.0",
+]
 # Only needed by scripts/collect_reviews_es.py (reads a parquet file).
 data = [
     "pyarrow>=14",
