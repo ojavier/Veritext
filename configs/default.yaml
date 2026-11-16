@@ -22,3 +22,13 @@ input:
 output:
   include_evidence: true
   include_signals: true
+
+zeroshot:
+  observer_model: "Qwen/Qwen2.5-0.5B"
+  performer_model: "Qwen/Qwen2.5-0.5B-Instruct"
+  device: "cpu"
+  max_tokens: 512
+  min_tokens: 16
+  # Placeholder: must be calibrated on data/eval (Phase 4).
+  threshold: 0.90
+  temperature: 0.05
