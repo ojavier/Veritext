@@ -36,7 +36,7 @@ dev = [
 [tool.setuptools.packages.find]
 # Top-level packages live at the repo root (src, ingest, signals).
 where = ["."]
-include = ["src*", "ingest*", "signals*"]
+include = ["src*", "ingest*", "signals*", "evaluation*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
