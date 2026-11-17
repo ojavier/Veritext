@@ -23,6 +23,14 @@ output:
   include_evidence: true
   include_signals: true
 
+similarity:
+  model: "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+  device: "cpu"
+  batch_size: 32
+  max_seq_length: 256   # the model default (128) would truncate most paragraphs
+  top_k: 3
+  # index_dir: data/.cache/reference_index  (built by scripts/build_index.py)
+
 zeroshot:
   observer_model: "Qwen/Qwen2.5-0.5B"
   performer_model: "Qwen/Qwen2.5-0.5B-Instruct"
