@@ -12,7 +12,6 @@ import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-
 DEFAULT_TARGET_FPR = 0.01
 DEFAULT_UNCERTAINTY_FPR = 0.05
 
@@ -29,7 +28,9 @@ def _label_is_llm(label: int | bool | str) -> bool:
         return label
     if isinstance(label, int) and label in (0, 1):
         return bool(label)
-    raise ValueError(f"unsupported label {label!r}; expected 0, 1, True, False, human or llm")
+    raise ValueError(
+        f"unsupported label {label!r}; expected 0, 1, True, False, human or llm"
+    )
 
 
 def _validate_fpr(value: float, name: str) -> float:
@@ -71,7 +72,9 @@ def threshold_at_fpr(
     if len(values) != len(labels):
         raise ValueError("scores and labels must have the same length")
     target_fpr = _validate_fpr(target_fpr, "target_fpr")
-    human_scores = [score for score, label in zip(values, labels) if not _label_is_llm(label)]
+    human_scores = [
+        score for score, label in zip(values, labels) if not _label_is_llm(label)
+    ]
     if not human_scores:
         raise ValueError("at least one human example is required")
     return _threshold_for_fpr(human_scores, target_fpr)
