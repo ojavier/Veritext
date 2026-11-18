@@ -1,4 +1,6 @@
 __pycache__/
-*.pyc.pytest_cache/
+*.pyc
+.pytest_cache/
 data/.cache/
 data/raw/
+README.local.md
