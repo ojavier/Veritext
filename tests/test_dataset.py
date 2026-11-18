@@ -11,9 +11,27 @@ def test_normalize_renames_language():
     assert normalize({"language": "es"})["lang"] == "es"
 
 
+def test_normalize_infers_missing_llm_model_from_generator():
+    record = {
+        "label": "llm",
+        "language": "es",
+        "generator": "local_llm_a",
+    }
+    normalized = normalize(record)
+    assert normalized["lang"] == "es"
+    assert normalized["model"] == "local_llm_a"
+
+
 def test_validate_flags_problems():
     assert validate({"id": "x"})  # missing fields
-    ok = {"id": "1", "text": "hola", "domain": "d", "label": "human", "lang": "es", "source": "s"}
+    ok = {
+        "id": "1",
+        "text": "hola",
+        "domain": "d",
+        "label": "human",
+        "lang": "es",
+        "source": "s",
+    }
     assert validate(ok) == []
     assert validate({**ok, "label": "llm"})  # llm needs generator/model
     assert validate({**ok, "label": "robot"})
