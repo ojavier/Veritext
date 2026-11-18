@@ -249,6 +249,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="also calculate the zero-shot model signal",
     )
+    parser.add_argument(
+        "--scores-out",
+        type=Path,
+        help="save precomputed signal scores JSON",
+    )
     parser.add_argument("--device", default="cpu")
     return parser
 
@@ -291,6 +296,20 @@ def main(argv: Sequence[str] | None = None) -> int:
                 file=sys.stderr,
             )
             return 1
+
+        if args.scores_out:
+            args.scores_out.parent.mkdir(parents=True, exist_ok=True)
+            payload = {
+                "ai_prob_status": (
+                    "calculated" if args.zeroshot else "not_calculated"
+                ),
+                "scores": scores,
+            }
+            args.scores_out.write_text(
+                json.dumps(payload, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            print(f"Saved precomputed signals to {args.scores_out}")
 
         combiner, calibration = train_fusion(
             split.train,
