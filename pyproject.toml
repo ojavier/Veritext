@@ -24,6 +24,11 @@ similarity = [
     "numpy>=1.24",
     "sentence-transformers>=3.0",
 ]
+# Fusion (fusion/combiner.py).
+fusion = [
+    "numpy>=1.24",
+    "scikit-learn>=1.3",
+]
 # Only needed by scripts/collect_reviews_es.py (reads a parquet file).
 data = [
     "pyarrow>=14",
@@ -36,7 +41,7 @@ dev = [
 [tool.setuptools.packages.find]
 # Top-level packages live at the repo root (src, ingest, signals).
 where = ["."]
-include = ["src*", "ingest*", "signals*"]
+include = ["src*", "ingest*", "signals*", "evaluation*", "fusion*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
