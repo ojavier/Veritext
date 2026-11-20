@@ -90,9 +90,9 @@ Lectura:
   detecta menos que zero-shot solo (0.437 frente a 0.530).
 - La similitud contra texto humano no separa humano de IA (AUROC ≈ azar).
 - **Los errores tipográficos rompen el sistema:** el AUROC cae por debajo de 0.5, es decir,
-  el texto de IA con typos se puntúa como *más humano* que el humano. Los typos elevan la
-  perplexidad y el zero-shot lo interpreta como escritura humana. Es la principal
-  debilidad conocida.
+  el texto de IA con typos se puntúa como *más humano* que el humano. Hipótesis (no verificada): los typos
+  elevan la perplexidad y el zero-shot lo interpreta como escritura humana. Es la
+  principal debilidad conocida.
 - La paráfrasis por reglas casi no degrada los resultados, pero es un ataque débil.
 - Una sola partición y una sola semilla: no hay intervalos de confianza.
 
