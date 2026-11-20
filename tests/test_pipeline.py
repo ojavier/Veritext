@@ -71,3 +71,13 @@ def test_explicit_calibration_controls_levels():
     assert pipeline.level(0.9) == "high"
     assert pipeline.level(0.6) == "uncertain"
     assert pipeline.level(0.2) == "low"
+
+
+def test_cli_report_and_html_formats(monkeypatch, capsys):
+    from src import pipeline as pl
+
+    monkeypatch.setattr(pl, "HFBinocularsScorer", lambda *a, **k: FakeScorer(0.5))
+    for fmt, marker in (("report", '"summary"'), ("html", "<html")):
+        code = pl.main(["--text", TEXT, "--format", fmt])
+        assert code == 0
+        assert marker in capsys.readouterr().out
