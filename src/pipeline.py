@@ -395,7 +395,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("input", nargs="?", help="text file (or '-' for stdin)")
     parser.add_argument("--text", help="texto a analizar directamente")
     parser.add_argument("--config", help=f"YAML path (default: {DEFAULT_CONFIG_PATH})")
-    parser.add_argument("--format", choices=("json", "text"), default="json")
+    parser.add_argument("--format", choices=("json", "text", "report", "html"), default="json")
     parser.add_argument("--device", help="cpu, cuda, mps... (overrides the config)")
     parser.add_argument("--threshold", type=float, help="Binoculars threshold (overrides the config)")
     parser.add_argument("--workers", type=int, default=1, help="threads for processing segments")
@@ -427,7 +427,12 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: {error}", file=sys.stderr)
         return 1
 
-    print(alerts_to_json(alerts) if args.format == "json" else alerts_to_text(alerts))
+    if args.format in ("report", "html"):
+        from report.render import render_html, render_json
+
+        print(render_html(alerts) if args.format == "html" else render_json(alerts))
+    else:
+        print(alerts_to_json(alerts) if args.format == "json" else alerts_to_text(alerts))
     return 0
 
 
