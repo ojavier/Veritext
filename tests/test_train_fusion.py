@@ -60,3 +60,12 @@ def test_hide_holdout_generators_merges_with_config():
     assert out["matching"]["exclude_generators"] == ["g1", "g2"] and out["matching"]["top_k"] == 3
     assert cfg["matching"]["exclude_generators"] == ["g1"]  # input untouched
     assert train_fusion.hide_holdout_generators({}, split)["matching"]["exclude_generators"] == ["g2"]
+
+
+def test_load_scores_reads_its_own_scores_out_format(tmp_path):
+    import json
+
+    path = tmp_path / "scores.json"
+    row = {"similarity": 0.1, "matching": 0.2, "ai_prob": 0.3}
+    path.write_text(json.dumps({"ai_prob_status": "calculated", "scores": {"a": row}}), encoding="utf-8")
+    assert train_fusion.load_scores(path) == {"a": row}

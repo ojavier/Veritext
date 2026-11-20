@@ -43,10 +43,11 @@ def load_scores(path: str | Path) -> dict[str, Mapping[str, float]]:
                     entries.append(json.loads(line))
     else:
         payload = json.loads(path.read_text(encoding="utf-8"))
+        # ``--scores-out`` wraps the id -> row mapping in {"scores": {...}}.
+        if isinstance(payload, dict) and isinstance(payload.get("scores"), dict):
+            payload = payload["scores"]
         if isinstance(payload, dict):
-            if "scores" in payload and isinstance(payload["scores"], dict):
-                payload = payload["scores"]
-            elif "scores" in payload and isinstance(payload["scores"], list):
+            if "scores" in payload and isinstance(payload["scores"], list):
                 entries = payload["scores"]
                 payload = None
             elif all(
