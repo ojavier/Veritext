@@ -127,6 +127,20 @@ def rows_for_records(
     return rows, labels
 
 
+def hide_holdout_generators(config: Mapping[str, Any], split: Any) -> dict[str, Any]:
+    """Copy of ``config`` whose matching index excludes the held-out generators.
+
+    Otherwise records of an "unseen" generator would find their siblings in the
+    index and the matching signal would be inflated.
+    """
+    out = dict(config)
+    matching = dict(out.get("matching") or {})
+    hidden = {*(matching.get("exclude_generators") or ()), *split.holdout_generators}
+    matching["exclude_generators"] = sorted(hidden)
+    out["matching"] = matching
+    return out
+
+
 def calculate_signals(
     records: Sequence[Record],
     *,
@@ -293,6 +307,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             from src.pipeline import load_config
 
             config = load_config(args.config) if args.config else load_config()
+            config = hide_holdout_generators(config, split)
             scores = calculate_signals(
                 records,
                 config=config,

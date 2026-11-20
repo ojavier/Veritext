@@ -49,3 +49,14 @@ def test_attacked_record_hides_its_source(monkeypatch):
     attacked = [{"id": "a~typos", "source_id": "a", "text": TEXTS["a"], "domain": "x"}]
     row = train_fusion.calculate_signals(attacked, config={})["a~typos"]
     assert row["similarity"] < 0.99 and row["matching"] < 0.99
+
+
+def test_hide_holdout_generators_merges_with_config():
+    from types import SimpleNamespace
+
+    split = SimpleNamespace(holdout_generators=("g2",))
+    cfg = {"matching": {"exclude_generators": ["g1"], "top_k": 3}}
+    out = train_fusion.hide_holdout_generators(cfg, split)
+    assert out["matching"]["exclude_generators"] == ["g1", "g2"] and out["matching"]["top_k"] == 3
+    assert cfg["matching"]["exclude_generators"] == ["g1"]  # input untouched
+    assert train_fusion.hide_holdout_generators({}, split)["matching"]["exclude_generators"] == ["g2"]

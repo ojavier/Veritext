@@ -34,7 +34,7 @@ from fusion.combiner import (  # noqa: E402
     MaxCombiner,
     MeanCombiner,
 )
-from scripts.train_fusion import calculate_signals, load_scores  # noqa: E402
+from scripts.train_fusion import calculate_signals, hide_holdout_generators, load_scores  # noqa: E402
 from src.dataset import DATA_DIR, Record, load_dataset  # noqa: E402
 from src.schemas import Signals  # noqa: E402
 
@@ -236,6 +236,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             from src.pipeline import load_config
 
             config = load_config(args.config) if args.config else load_config()
+            config = hide_holdout_generators(config, split)
             scores = calculate_signals(
                 [*records, *(r for rs in attacked_sets.values() for r in rs if r.get("attack"))],
                 config=config,
