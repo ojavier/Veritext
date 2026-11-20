@@ -165,8 +165,18 @@ def calculate_signals(
             supported_languages=config["input"]["supported_languages"],
         )
 
+    # Each record must not find itself in the indexes (self-match leak).
+    excluded_generators = frozenset(
+        config.get("matching", {}).get("exclude_generators") or ()
+    )
+
     out: dict[str, Mapping[str, float]] = {}
     for position, record in enumerate(records):
+        own_id = str(record["id"])
+        similarity.exclude_ids = frozenset({own_id})
+        matching.allowed = matching.index.allowed_positions(
+            frozenset({own_id}), excluded_generators
+        )
         segment = Segment(
             id=position,
             text=str(record["text"]),
