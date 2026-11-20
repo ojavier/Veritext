@@ -27,10 +27,12 @@ Record = dict[str, Any]
 
 
 def normalize(record: Record) -> Record:
-    """Return a copy using the canonical field names (``language`` -> ``lang``)."""
+    """Return a copy with canonical names and compatibility fields."""
     out = dict(record)
     if "lang" not in out and "language" in out:
         out["lang"] = out.pop("language")
+    if out.get("label") == "llm" and not out.get("model"):
+        out["model"] = str(out.get("generator") or out.get("source") or "unknown")
     return out
 
 
@@ -83,9 +85,17 @@ def load_dataset(
             raise ValueError(f"unknown kind {kind!r}; expected one of {KINDS}")
         for path in sorted((Path(data_dir) / kind).glob("*.jsonl")):
             for record in read_jsonl(path):
+                expected_label = "llm" if kind == "generated" else "human"
+                if record.get("label") != expected_label:
+                    continue
+                text_length = len(str(record.get("text", "")))
+                if text_length < 250 or text_length > 1000:
+                    continue
                 problems = validate(record)
                 if problems and strict:
-                    raise ValueError(f"{path.name} {record.get('id')}: {'; '.join(problems)}")
+                    raise ValueError(
+                        f"{path.name} {record.get('id')}: {'; '.join(problems)}"
+                    )
                 if problems:
                     continue
                 if domain_set is not None and record["domain"] not in domain_set:

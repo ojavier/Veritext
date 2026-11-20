@@ -42,6 +42,10 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "threshold": 0.90,
         "temperature": 0.05,
     },
+    "fusion": {
+        "model": "data/.cache/fusion.json",
+        "calibration": "data/.cache/fusion_calibration.json",
+    },
 }
 
 
@@ -180,11 +184,22 @@ class ZeroShotSignal(BaseSignal):
 # Pipeline
 # --------------------------------------------------------------------------- #
 class Pipeline:
-    """Orchestrates ingest -> signals -> provisional decision -> alerts."""
+    """Orchestrates ingest -> signals -> calibrated fusion -> alerts."""
 
-    def __init__(self, config: dict[str, Any] | None = None, scorer: BinocularsScorer | None = None,
-                 max_workers: int = 1):
+    def __init__(
+        self,
+        config: dict[str, Any] | None = None,
+        scorer: BinocularsScorer | None = None,
+        max_workers: int = 1,
+        combiner: Any = None,
+        calibration: Any = None,
+        fusion_model_path: str | Path | None = None,
+        calibration_path: str | Path | None = None,
+    ):
         self.config = config or load_config()
+        fusion_disabled = combiner is False
+        if fusion_disabled:
+            combiner = None
         zs = self.config["zeroshot"]
         if scorer is None:
             scorer = HFBinocularsScorer(zs["observer_model"], zs["performer_model"],
@@ -200,6 +215,80 @@ class Pipeline:
         self.uncertain_cutoff = float(levels["uncertain"])
         self.high_cutoff = float(levels["high"])
         self.max_workers = max(1, max_workers)
+        self.combiner = combiner
+        self.calibration = calibration
+        self.similarity_signal = None
+        self.matching_signal = None
+        if not fusion_disabled:
+            self._load_fusion(fusion_model_path, calibration_path)
+            self._load_fusion_signals()
+
+    def _resolve_path(self, path: str | Path) -> Path:
+        resolved = Path(path)
+        if not resolved.is_absolute():
+            resolved = Path(__file__).resolve().parent.parent / resolved
+        return resolved
+
+    def _load_fusion(
+        self,
+        fusion_model_path: str | Path | None,
+        calibration_path: str | Path | None,
+    ) -> None:
+        from fusion.calibration import Calibration
+        from fusion.combiner import LogisticCombiner
+
+        fusion_config = self.config.get("fusion", {})
+        model_path = fusion_model_path or fusion_config.get("model")
+        cal_path = calibration_path or fusion_config.get("calibration")
+
+        if self.combiner is None and model_path:
+            path = self._resolve_path(model_path)
+            if path.exists():
+                self.combiner = LogisticCombiner.load(path)
+
+        if self.calibration is None and cal_path:
+            path = self._resolve_path(cal_path)
+            if path.exists():
+                payload = json.loads(path.read_text(encoding="utf-8"))
+                self.calibration = Calibration(
+                    threshold=float(payload["threshold"]),
+                    uncertainty_threshold=float(payload["uncertainty_threshold"]),
+                    target_fpr=float(payload.get("target_fpr", 0.01)),
+                    uncertainty_fpr=float(payload.get("uncertainty_fpr", 0.05)),
+                )
+        elif isinstance(self.calibration, dict):
+            payload = self.calibration
+            self.calibration = Calibration(
+                threshold=float(payload["threshold"]),
+                uncertainty_threshold=float(payload["uncertainty_threshold"]),
+                target_fpr=float(payload.get("target_fpr", 0.01)),
+                uncertainty_fpr=float(payload.get("uncertainty_fpr", 0.05)),
+            )
+        elif isinstance(self.calibration, (str, Path)):
+            path = self._resolve_path(self.calibration)
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            self.calibration = Calibration(
+                threshold=float(payload["threshold"]),
+                uncertainty_threshold=float(payload["uncertainty_threshold"]),
+                target_fpr=float(payload.get("target_fpr", 0.01)),
+                uncertainty_fpr=float(payload.get("uncertainty_fpr", 0.05)),
+            )
+
+    def _load_fusion_signals(self) -> None:
+        if self.combiner is None:
+            return
+        try:
+            from signals.matching import MatchingSignal
+            from signals.similarity import SimilaritySignal
+
+            self.similarity_signal = SimilaritySignal.from_config(dict(self.config))
+            self.matching_signal = MatchingSignal.from_config(
+                dict(self.config), Path(__file__).resolve().parent.parent / "data"
+            )
+        except (FileNotFoundError, ImportError, RuntimeError) as error:
+            self._fusion_signals_warning = str(error)
+        else:
+            self._fusion_signals_warning = None
 
     def ingest(self, text: str) -> list[Segment]:
         max_length = int(self.config["input"]["max_segment_length"])
@@ -208,6 +297,8 @@ class Pipeline:
                 for s in segments]
 
     def level(self, score: float) -> str:
+        if hasattr(self.calibration, "level"):
+            return self.calibration.level(score)
         if score >= self.high_cutoff:
             return "high"
         if score >= self.uncertain_cutoff:
@@ -216,7 +307,41 @@ class Pipeline:
 
     def _alert(self, segment: Segment) -> Alert:
         signals = self.signal.analyze(segment)
-        score = signals.ai_prob  # Phase 4: replace with calibrated fusion.
+        score = signals.ai_prob
+        evidence = dict(signals.evidence)
+
+        if self.combiner is not None and self.similarity_signal is not None:
+            try:
+                similarity = self.similarity_signal.analyze(segment)
+                evidence.update(similarity.evidence)
+                signals.similarity = similarity.similarity
+            except (FileNotFoundError, ImportError, RuntimeError, ValueError) as error:
+                evidence["similarity"] = {"status": "error", "error": str(error)}
+
+        if self.combiner is not None and self.matching_signal is not None:
+            try:
+                matching = self.matching_signal.analyze(segment)
+                evidence.update(matching.evidence)
+                signals.matching = matching.matching
+            except (FileNotFoundError, ImportError, RuntimeError, ValueError) as error:
+                evidence["matching"] = {"status": "error", "error": str(error)}
+
+        if (
+            self.combiner is not None
+            and self.similarity_signal is not None
+            and self.matching_signal is not None
+        ):
+            try:
+                score = self.combiner.score(signals)
+            except (RuntimeError, ValueError) as error:
+                evidence["fusion"] = {"status": "error", "error": str(error)}
+
+        if getattr(self, "_fusion_signals_warning", None):
+            evidence["fusion"] = {
+                "status": "unavailable",
+                "error": self._fusion_signals_warning,
+            }
+        signals.evidence = evidence
         return Alert(segment=segment, score=score, level=self.level(score), signals=signals)
 
     def run(self, text: str) -> list[Alert]:
@@ -274,6 +399,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--device", help="cpu, cuda, mps... (overrides the config)")
     parser.add_argument("--threshold", type=float, help="Binoculars threshold (overrides the config)")
     parser.add_argument("--workers", type=int, default=1, help="threads for processing segments")
+    parser.add_argument("--fusion-model", help="trained fusion model JSON")
+    parser.add_argument("--fusion-calibration", help="calibration JSON")
     return parser
 
 
@@ -290,7 +417,12 @@ def main(argv: list[str] | None = None) -> int:
         config = _deep_merge(config, {"zeroshot": {"threshold": args.threshold}})
 
     try:
-        alerts = Pipeline(config, max_workers=args.workers).run(_read_input(args))
+        alerts = Pipeline(
+            config,
+            max_workers=args.workers,
+            fusion_model_path=args.fusion_model,
+            calibration_path=args.fusion_calibration,
+        ).run(_read_input(args))
     except (OSError, RuntimeError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1

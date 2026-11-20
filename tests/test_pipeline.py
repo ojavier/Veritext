@@ -2,6 +2,7 @@
 
 import json
 
+from fusion.calibration import Calibration
 from src.pipeline import Pipeline, alerts_to_json, load_config
 
 
@@ -32,7 +33,11 @@ def test_segments_language_and_offsets():
 
 def test_scores_are_probabilities_and_levels_follow_score():
     for raw, expected in ((0.5, "high"), (1.5, "low")):
-        alerts = Pipeline(load_config(), scorer=FakeScorer(raw)).run(TEXT)
+        alerts = Pipeline(
+            load_config(),
+            scorer=FakeScorer(raw),
+            combiner=False,
+        ).run(TEXT)
         assert alerts
         for a in alerts:
             assert 0.0 <= a.score <= 1.0
@@ -49,3 +54,20 @@ def test_json_output_is_valid_and_keeps_evidence():
 
 def test_empty_text_gives_no_alerts():
     assert Pipeline(load_config(), scorer=FakeScorer(1.0)).run("  \n\n ") == []
+
+
+def test_explicit_calibration_controls_levels():
+    calibration = Calibration(
+        threshold=0.8,
+        uncertainty_threshold=0.5,
+        target_fpr=0.01,
+        uncertainty_fpr=0.05,
+    )
+    pipeline = Pipeline(
+        load_config(),
+        scorer=FakeScorer(1.0),
+        calibration=calibration,
+    )
+    assert pipeline.level(0.9) == "high"
+    assert pipeline.level(0.6) == "uncertain"
+    assert pipeline.level(0.2) == "low"
