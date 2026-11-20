@@ -172,11 +172,11 @@ def calculate_signals(
 
     out: dict[str, Mapping[str, float]] = {}
     for position, record in enumerate(records):
-        own_id = str(record["id"])
-        similarity.exclude_ids = frozenset({own_id})
-        matching.allowed = matching.index.allowed_positions(
-            frozenset({own_id}), excluded_generators
+        own_ids = frozenset(
+            {str(record["id"]), *([str(record["source_id"])] if record.get("source_id") else [])}
         )
+        similarity.exclude_ids = own_ids
+        matching.allowed = matching.index.allowed_positions(own_ids, excluded_generators)
         segment = Segment(
             id=position,
             text=str(record["text"]),

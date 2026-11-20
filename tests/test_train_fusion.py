@@ -37,3 +37,15 @@ def test_records_do_not_match_themselves(monkeypatch):
     for record_id, row in scores.items():
         assert row["similarity"] < 0.99, record_id
         assert row["matching"] < 0.99, record_id
+
+
+def test_attacked_record_hides_its_source(monkeypatch):
+    records = [{"id": k, "text": v, "domain": "x", "generator": "g"} for k, v in TEXTS.items()]
+    embedder = FakeEmbedder()
+    monkeypatch.setattr(similarity_mod.SimilaritySignal, "from_config", classmethod(
+        lambda cls, config: cls(similarity_mod.ReferenceIndex.build(records, embedder), embedder)))
+    monkeypatch.setattr(matching_mod.MatchingSignal, "from_config", classmethod(
+        lambda cls, config, data_dir: cls(matching_mod.GeneratedIndex(records, n=3), min_ngrams=1)))
+    attacked = [{"id": "a~typos", "source_id": "a", "text": TEXTS["a"], "domain": "x"}]
+    row = train_fusion.calculate_signals(attacked, config={})["a~typos"]
+    assert row["similarity"] < 0.99 and row["matching"] < 0.99

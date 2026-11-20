@@ -146,7 +146,8 @@ def attack_records(
     labels: Sequence[str] | None = None,
     **kwargs: Any,
 ) -> list[Record]:
-    """Return attacked copies: new id ``<id>~<name>``, ``attack`` field set.
+    """Return attacked copies: new id ``<id>~<name>``, ``attack`` set and
+    ``source_id`` pointing at the original (so indexes can hide it).
 
     ``labels`` restricts which records are attacked (e.g. only ``["llm"]``,
     since an evasion attack is applied to machine text).
@@ -159,5 +160,6 @@ def attack_records(
         copy["id"] = f"{record['id']}~{name}"
         copy["text"] = apply_attack(str(record["text"]), name, seed=seed + i, **kwargs)
         copy["attack"] = name
+        copy["source_id"] = record["id"]
         out.append(copy)
     return out
