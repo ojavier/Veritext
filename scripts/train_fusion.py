@@ -43,10 +43,11 @@ def load_scores(path: str | Path) -> dict[str, Mapping[str, float]]:
                     entries.append(json.loads(line))
     else:
         payload = json.loads(path.read_text(encoding="utf-8"))
+        # ``--scores-out`` wraps the id -> row mapping in {"scores": {...}}.
+        if isinstance(payload, dict) and isinstance(payload.get("scores"), dict):
+            payload = payload["scores"]
         if isinstance(payload, dict):
-            if "scores" in payload and isinstance(payload["scores"], dict):
-                payload = payload["scores"]
-            elif "scores" in payload and isinstance(payload["scores"], list):
+            if "scores" in payload and isinstance(payload["scores"], list):
                 entries = payload["scores"]
                 payload = None
             elif all(
@@ -127,6 +128,20 @@ def rows_for_records(
     return rows, labels
 
 
+def hide_holdout_generators(config: Mapping[str, Any], split: Any) -> dict[str, Any]:
+    """Copy of ``config`` whose matching index excludes the held-out generators.
+
+    Otherwise records of an "unseen" generator would find their siblings in the
+    index and the matching signal would be inflated.
+    """
+    out = dict(config)
+    matching = dict(out.get("matching") or {})
+    hidden = {*(matching.get("exclude_generators") or ()), *split.holdout_generators}
+    matching["exclude_generators"] = sorted(hidden)
+    out["matching"] = matching
+    return out
+
+
 def calculate_signals(
     records: Sequence[Record],
     *,
@@ -165,8 +180,18 @@ def calculate_signals(
             supported_languages=config["input"]["supported_languages"],
         )
 
+    # Each record must not find itself in the indexes (self-match leak).
+    excluded_generators = frozenset(
+        config.get("matching", {}).get("exclude_generators") or ()
+    )
+
     out: dict[str, Mapping[str, float]] = {}
     for position, record in enumerate(records):
+        own_ids = frozenset(
+            {str(record["id"]), *([str(record["source_id"])] if record.get("source_id") else [])}
+        )
+        similarity.exclude_ids = own_ids
+        matching.allowed = matching.index.allowed_positions(own_ids, excluded_generators)
         segment = Segment(
             id=position,
             text=str(record["text"]),
@@ -283,6 +308,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             from src.pipeline import load_config
 
             config = load_config(args.config) if args.config else load_config()
+            config = hide_holdout_generators(config, split)
             scores = calculate_signals(
                 records,
                 config=config,

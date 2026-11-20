@@ -34,7 +34,7 @@ from fusion.combiner import (  # noqa: E402
     MaxCombiner,
     MeanCombiner,
 )
-from scripts.train_fusion import calculate_signals, load_scores  # noqa: E402
+from scripts.train_fusion import calculate_signals, hide_holdout_generators, load_scores  # noqa: E402
 from src.dataset import DATA_DIR, Record, load_dataset  # noqa: E402
 from src.schemas import Signals  # noqa: E402
 
@@ -122,10 +122,11 @@ def evaluate_ablations(
     target_fpr: float = 0.01,
     C: float = 1.0,
     seed: int = 0,
+    test_records: Sequence[Record] | None = None,
 ) -> dict[str, dict[str, Any]]:
     train_rows, train_labels = records_to_rows(split.train, scores)
-    test_rows, test_labels = records_to_rows(split.test, scores)
-    test_records = split.test
+    test_records = split.test if test_records is None else test_records
+    test_rows, test_labels = records_to_rows(test_records, scores)
 
     out: dict[str, dict[str, Any]] = {}
     for name in ABLATION_NAMES:
@@ -145,6 +146,14 @@ def evaluate_ablations(
             target_fpr,
         )
     return out
+
+
+def attacked_test_set(split: Any, name: str, seed: int = 0) -> list[Record]:
+    """Clean human test records plus attacked copies of the LLM test records."""
+    from evaluation.attacks import attack_records
+
+    humans = [r for r in split.test if r.get("label") == "human"]
+    return humans + attack_records(split.test, name, seed=seed, labels=["llm"])
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -177,6 +186,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--scores-out",
         type=Path,
         help="save calculated signal scores JSON",
+    )
+    parser.add_argument(
+        "--attack",
+        action="append",
+        default=[],
+        help="also evaluate with this attack applied to LLM test records (repeatable)",
     )
     parser.add_argument("--split-out", type=Path)
     parser.add_argument("--config", type=Path)
@@ -213,14 +228,17 @@ def main(argv: Sequence[str] | None = None) -> int:
                 seed=args.seed,
             )
 
+        attacked_sets = {name: attacked_test_set(split, name, args.seed) for name in args.attack}
+
         if args.scores:
             scores = load_scores(args.scores)
         elif args.calculate:
             from src.pipeline import load_config
 
             config = load_config(args.config) if args.config else load_config()
+            config = hide_holdout_generators(config, split)
             scores = calculate_signals(
-                records,
+                [*records, *(r for rs in attacked_sets.values() for r in rs if r.get("attack"))],
                 config=config,
                 data_dir=args.data_dir,
                 use_zeroshot=args.zeroshot,
@@ -259,6 +277,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         _print_table(results)
 
+        attack_results: dict[str, Any] = {}
+        for name, test_records in attacked_sets.items():
+            attack_results[name] = evaluate_ablations(
+                split,
+                scores,
+                target_fpr=args.target_fpr,
+                C=args.C,
+                seed=args.seed,
+                test_records=test_records,
+            )
+            print(f"\nAttack: {name}")
+            _print_table(attack_results[name])
+
         if args.out:
             args.out.parent.mkdir(parents=True, exist_ok=True)
             args.out.write_text(
@@ -269,6 +300,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                         "holdout_domains": list(split.holdout_domains),
                         "holdout_generators": list(split.holdout_generators),
                         "ablations": results,
+                        "attacks": attack_results,
                     },
                     ensure_ascii=False,
                     indent=2,
